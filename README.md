@@ -29,7 +29,7 @@ AIは単に手を指すだけでなく、その手を選んだ理由を日本語
 1. **APIキーの取得**:
    [Google AI Studio](https://aistudio.google.com/) からAPIキーを取得してください。
 
-3. **環境変数**:
+2. **環境変数**:
    プロジェクトのルートに `.env.local` ファイルを作成し、`GEMINI_API_KEY` を設定してください。
    
    ```bash
@@ -59,8 +59,10 @@ AIは単に手を指すだけでなく、その手を選んだ理由を日本語
 すべての難易度において、有効な手 (Valid Moves) のリストから選択するように制約を設けていますが、難易度に応じて「あえて甘い手を選ぶ」か「最強の手を選ぶ」かの振る舞いを変えています。
 
 3. **依存関係のインストール**:
+   プロジェクトのルートディレクトリに移動してから実行してください。
    ```bash
-   npm install react react-dom chess.js react-chessboard @google/genai lucide-react tailwindcss
+   cd gemini-ai-chess
+   npm install
    ```
 
 4. **起動**:
