@@ -40,6 +40,32 @@ AIは単に手を指すだけでなく、その手を選んだ理由を日本語
    npm run dev
    ```
 
+5. **Ollamaのセットアップ (ローカルLLMを使用する場合)**:
+   
+   このプロジェクトは、ローカルLLM (Ollama) との対戦もサポートしています。
+   
+   - **Ollamaのインストール**:
+     [Ollama公式サイト](https://ollama.com/)からインストールするか、Homebrewを使用してください。
+     ```bash
+     brew install ollama
+     ```
+   
+   - **Ollamaの起動**:
+     ```bash
+     brew services start ollama
+     # または
+     ollama serve
+     ```
+   
+   - **モデルの準備**:
+     本プロジェクトでは `gpt-oss-safeguard:20b` というモデルIDを使用しています。
+     必要なモデルをpullまたは作成してください。
+     ```bash
+     # 例: 既存のモデルをコピーする場合
+     ollama cp llama3 gpt-oss-safeguard:20b
+     ```
+
+
 # 今後の展望
 
 - **LLMによる局面評価**: 現在の局面の優劣を、数値と自然言語でLLMが評価する機能。
