@@ -2,13 +2,15 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Chess } from 'chess.js';
 import { Chessboard } from 'react-chessboard';
 import { getBestMove } from '../services/geminiService';
-import { Difficulty, AIMoveResponse } from '../types';
+import { getBestMoveFromOllama } from '../services/ollamaService';
+import { Difficulty, AIMoveResponse, AIProvider } from '../types';
 import { Bot, RefreshCw, Trophy, AlertTriangle, Cpu, User } from 'lucide-react';
 
 const ChessGame: React.FC = () => {
   // Game State
   const [game, setGame] = useState(new Chess());
   const [difficulty, setDifficulty] = useState<Difficulty>(Difficulty.INTERMEDIATE);
+  const [aiProvider, setAiProvider] = useState<AIProvider>('gemini');
   const [aiThinking, setAiThinking] = useState(false);
   const [lastAiReasoning, setLastAiReasoning] = useState<string>("");
   const [gameStatus, setGameStatus] = useState<string>("");
@@ -50,12 +52,23 @@ const ChessGame: React.FC = () => {
         return;
       }
 
-      const response: AIMoveResponse = await getBestMove(
-        game.fen(),
-        possibleMoves,
-        difficulty,
-        game.pgn()
-      );
+      let response: AIMoveResponse;
+
+      if (aiProvider === 'gemini') {
+        response = await getBestMove(
+          game.fen(),
+          possibleMoves,
+          difficulty,
+          game.pgn()
+        );
+      } else {
+        response = await getBestMoveFromOllama(
+          game.fen(),
+          possibleMoves,
+          difficulty,
+          game.pgn()
+        );
+      }
 
       setLastAiReasoning(response.reasoning);
 
@@ -257,8 +270,33 @@ const ChessGame: React.FC = () => {
             Gemini Chess Master
           </h1>
           <p className="text-slate-400 text-sm">
-            Google Gemini 2.5 Flash と対戦。難易度を選択して挑戦してください。
+            {aiProvider === 'gemini' ? 'Google Gemini 2.5 Flash' : 'Ollama (gpt-oss-safeguard:20b)'} と対戦。難易度を選択して挑戦してください。
           </p>
+        </div>
+
+        {/* AI Provider Selector */}
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+          <label className="block text-sm font-medium text-slate-300 mb-3">AI モデル選択</label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setAiProvider('gemini')}
+              className={`p-2 rounded-md text-sm font-medium transition-all ${aiProvider === 'gemini'
+                ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-400'
+                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                }`}
+            >
+              Gemini
+            </button>
+            <button
+              onClick={() => setAiProvider('ollama')}
+              className={`p-2 rounded-md text-sm font-medium transition-all ${aiProvider === 'ollama'
+                ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-400'
+                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                }`}
+            >
+              Ollama
+            </button>
+          </div>
         </div>
 
         {/* Difficulty Selector */}

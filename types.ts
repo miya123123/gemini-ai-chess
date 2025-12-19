@@ -1,3 +1,5 @@
+export type AIProvider = 'gemini' | 'ollama';
+
 export enum Difficulty {
   BEGINNER = 'beginner',
   INTERMEDIATE = 'intermediate',
