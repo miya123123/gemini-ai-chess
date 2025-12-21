@@ -1,4 +1,4 @@
-export type AIProvider = 'gemini-2.5-flash' | 'gemini-3-flash' | 'ollama';
+export type AIProvider = 'gemini-2.5-flash' | 'gemini-3-flash-preview' | 'ollama';
 
 export enum Difficulty {
   BEGINNER = 'beginner',
