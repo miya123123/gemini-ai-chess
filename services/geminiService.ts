@@ -1,11 +1,9 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { Difficulty, AIMoveResponse } from '../types';
+import { Difficulty, AIMoveResponse, AIProvider } from '../types';
 
 // Initialize the API client
 // Note: process.env.API_KEY is injected by the environment.
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
-
-const modelId = 'gemini-2.5-flash';
 
 const responseSchema: Schema = {
   type: Type.OBJECT,
@@ -26,8 +24,11 @@ export const getBestMove = async (
   fen: string,
   validMoves: string[],
   difficulty: Difficulty,
-  pgn: string
+  pgn: string,
+  provider: AIProvider
 ): Promise<AIMoveResponse> => {
+  const modelId = provider === 'gemini-1.5-flash' ? 'gemini-1.5-flash' : 'gemini-2.0-flash';
+
 
   let systemInstruction = `
     あなたは熟練したチェスのグランドマスターエンジンです。
