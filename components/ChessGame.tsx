@@ -10,7 +10,7 @@ const ChessGame: React.FC = () => {
   // Game State
   const [game, setGame] = useState(new Chess());
   const [difficulty, setDifficulty] = useState<Difficulty>(Difficulty.INTERMEDIATE);
-  const [aiProvider, setAiProvider] = useState<AIProvider>('gemini-2.0-flash');
+  const [aiProvider, setAiProvider] = useState<AIProvider>('gemini-3-flash');
   const [aiThinking, setAiThinking] = useState(false);
   const [lastAiReasoning, setLastAiReasoning] = useState<string>("");
   const [gameStatus, setGameStatus] = useState<string>("");
@@ -271,7 +271,7 @@ const ChessGame: React.FC = () => {
             Gemini Chess Master
           </h1>
           <p className="text-slate-400 text-sm">
-            {aiProvider === 'gemini-1.5-flash' ? 'Google Gemini 1.5 Flash' : aiProvider === 'gemini-2.0-flash' ? 'Google Gemini 2.0 Flash' : 'Ollama (gpt-oss-safeguard:20b)'} と対戦。難易度を選択して挑戦してください。
+            {aiProvider === 'gemini-2.5-flash' ? 'Google Gemini 2.5 Flash' : aiProvider === 'gemini-3-flash' ? 'Google Gemini 3 Flash' : 'Ollama (gpt-oss-safeguard:20b)'} と対戦。難易度を選択して挑戦してください。
           </p>
         </div>
 
@@ -280,22 +280,22 @@ const ChessGame: React.FC = () => {
           <label className="block text-sm font-medium text-slate-300 mb-3">AI モデル選択</label>
           <div className="grid grid-cols-1 gap-2">
             <button
-              onClick={() => setAiProvider('gemini-1.5-flash')}
-              className={`p-2 rounded-md text-sm font-medium transition-all ${aiProvider === 'gemini-1.5-flash'
+              onClick={() => setAiProvider('gemini-2.5-flash')}
+              className={`p-2 rounded-md text-sm font-medium transition-all ${aiProvider === 'gemini-2.5-flash'
                 ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-400'
                 : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                 }`}
             >
-              Gemini 1.5 Flash
+              Gemini 2.5 Flash
             </button>
             <button
-              onClick={() => setAiProvider('gemini-2.0-flash')}
-              className={`p-2 rounded-md text-sm font-medium transition-all ${aiProvider === 'gemini-2.0-flash'
+              onClick={() => setAiProvider('gemini-3-flash')}
+              className={`p-2 rounded-md text-sm font-medium transition-all ${aiProvider === 'gemini-3-flash'
                 ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-400'
                 : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                 }`}
             >
-              Gemini 2.0 Flash
+              Gemini 3 Flash
             </button>
             <button
               onClick={() => setAiProvider('ollama')}

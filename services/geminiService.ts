@@ -27,7 +27,7 @@ export const getBestMove = async (
   pgn: string,
   provider: AIProvider
 ): Promise<AIMoveResponse> => {
-  const modelId = provider === 'gemini-1.5-flash' ? 'gemini-1.5-flash' : 'gemini-2.0-flash';
+  const modelId = provider === 'gemini-2.5-flash' ? 'gemini-2.5-flash' : 'gemini-3-flash';
 
 
   let systemInstruction = `
