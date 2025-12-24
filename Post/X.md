@@ -39,6 +39,7 @@ LLMの急速な進化に驚きます。
 - Gemini 3 Pro (メインの開発に使用)
 - Gemini 2.5 Flash (対戦相手として使用)
 - Gemini 3 Flash (対戦相手として使用)
+- gpt-oss-safeguard:20b (Ollamaのローカルモデル。対戦相手として使用)
 
 ## Frontend
 React 19, TypeScript, Vite, Tailwind CSS
