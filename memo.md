@@ -10,7 +10,7 @@ o
 LLM（Gemini）とのチェス対戦ゲーム
 /Users/miya/program/app/chatGPTGame/root/Gemini/Gemini 3.0/9_GEMINI CHESS_v2.0を改良
 G3Fとの対戦機能実装
-LLM同士の対戦機能実装
+
 
 
 # 結果

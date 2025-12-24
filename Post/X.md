@@ -12,9 +12,6 @@ Gemini 2.5 Flashと比較すると、相変わらず思考時間はそれなり�
 明らかな悪手を指さなくなり、本LLMと対戦した結果引き分けに持ち込まれました。
 LLMの急速な進化に驚きます。
 
-# マシンスペック
-
-
 # 今後の展望
 - **LLM同士の対戦機能**: LLM同士を対戦させたり、本ゲームをLLMのゲームベンチマークとして活用できるようにする機能
 - **LLMによる局面評価**: 現在の局面の優劣を、数値と自然言語でLLMが評価する機能。
@@ -37,16 +34,27 @@ LLMの急速な進化に驚きます。
 # 使用技術
 ## 開発ツール
 - Antigravity
-- Google AI Studio
-- Codex
 
 ## Model
 - Gemini 3 Pro (メインの開発に使用)
 - Gemini 2.5 Flash (対戦相手として使用)
-- gpt-5.1-codex-max (軽微なバグ修正にサブとして使用)
+- Gemini 3 Flash (対戦相手として使用)
 
 ## Frontend
 React 19, TypeScript, Vite, Tailwind CSS
+
+# 実行環境
+### 機種名
+MacBook Air
+### チップ
+Apple M2
+### メモリ
+24GB
+### コアの総数
+8
+### OS
+macOS Sequoia 15.6
+
 
 # 関連URL
 - [Gemini Chess | GitHub](https://github.com/miya123123/gemini-ai-chess)
