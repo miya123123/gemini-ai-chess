@@ -4,9 +4,6 @@ LLM（Gemini）との対話型のチェスゲームです。
 プレイヤーは白番を持ち、LLMが黒番として対戦します。
 AIは単に手を指すだけでなく、その手を選んだ理由を日本語で解説します。
 
-# デモページ
-[Gemini Chess | GitHub Pages](https://miya123123.github.io/gemini-ai-chess/)
-
 # 主な機能
 - **AI対戦**: Gemini 3 Flash、Gemini 2.5 Flash、そしてgpt-oss-safeguard:20b（ローカル）との対戦が可能です。
 - **解説機能**: AIが手を指すたびに、なぜその手を選んだのかを日本語で解説します。
