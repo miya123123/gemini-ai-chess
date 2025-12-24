@@ -83,5 +83,9 @@ https://x.com/miya00907380/status/2001412086723678697
 [「Gemini Chess」を公開 ｜ miya](https://note.com/miya19/n/n42f0d3cd68c1)
 
 # 本XポストURL
+
+# 追加タスク
+サンタのai工房防衛戦へのURL追加
++1
  -->
 
