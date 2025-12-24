@@ -80,7 +80,7 @@ https://x.com/miya00907380/status/2001412086723678697
 /Users/miya/program/app/chatGPTGame/root/Gemini/Gemini 3.0/10_GEMINI CHESS_v3.0/Post/X.md
 
 # Note用
-[「Gemini Chess」を公開 | miya](https://x.com/miya00907380/status/2001412086723678697)
+[「Gemini Chess」を公開 ｜ miya](https://note.com/miya19/n/n42f0d3cd68c1)
 
 # 本XポストURL
  -->
