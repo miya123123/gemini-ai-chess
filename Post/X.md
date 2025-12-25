@@ -1,4 +1,7 @@
-「Gemini Chess」を改良し、「Gemini 3 Flash」および「gpt-oss-safeguard:20b（ローカル）」との対戦機能を追加実装しました。
+
+
+
+<!-- 「Gemini Chess」を改良し、「Gemini 3 Flash」および「gpt-oss-safeguard:20b（ローカル）」との対戦機能を追加実装しました。
 
 # 所感
 ### gpt-oss-safeguard:20b（ローカルモデル）
@@ -88,4 +91,4 @@ https://x.com/miya00907380/status/2001412086723678697
 サンタのai工房防衛戦へのURL追加
 +1
  -->
-
+ -->
