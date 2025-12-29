@@ -1,0 +1,5 @@
+{
+  "name": "Gemini AI Chess Master",
+  "description": "Google Gemini (LLM) を搭載した対話型チェスゲーム。学習型AIがあなたの相手をします。戦略的なアドバイスや解説も日本語で提供します。",
+  "requestFramePermissions": []
+}
