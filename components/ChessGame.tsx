@@ -4,48 +4,72 @@ import { Chessboard } from 'react-chessboard';
 import { getBestMove } from '../services/geminiService';
 import { getBestMoveFromOllama } from '../services/ollamaService';
 import { Difficulty, AIMoveResponse, AIProvider } from '../types';
-import { Bot, RefreshCw, Trophy, AlertTriangle, Cpu, User } from 'lucide-react';
+import { Bot, RefreshCw, Trophy, AlertTriangle, Cpu, User, Download, Play, Square, Settings2 } from 'lucide-react';
+
+type PlayerType = 'human' | 'ai';
+
+interface BenchmarkResult {
+  gameNumber: number;
+  winner: 'white' | 'black' | 'draw';
+  whitePlayer: string;
+  blackPlayer: string;
+  moves: number;
+  fen: string;
+  pgn: string;
+  timestamp: string;
+}
 
 const ChessGame: React.FC = () => {
   // Game State
   const [game, setGame] = useState(new Chess());
-  const [difficulty, setDifficulty] = useState<Difficulty>(Difficulty.INTERMEDIATE);
-  const [aiProvider, setAiProvider] = useState<AIProvider>('gemini-3-flash-preview');
+  const [gameStatus, setGameStatus] = useState<string>("");
+
+  // Player Configuration
+  const [whitePlayerType, setWhitePlayerType] = useState<PlayerType>('human');
+  const [blackPlayerType, setBlackPlayerType] = useState<PlayerType>('ai');
+
+  const [whiteAiProvider, setWhiteAiProvider] = useState<AIProvider>('gemini-2.5-flash');
+  const [blackAiProvider, setBlackAiProvider] = useState<AIProvider>('gemini-3-flash-preview');
+
+  const [whiteAiDifficulty, setWhiteAiDifficulty] = useState<Difficulty>(Difficulty.INTERMEDIATE);
+  const [blackAiDifficulty, setBlackAiDifficulty] = useState<Difficulty>(Difficulty.INTERMEDIATE);
+
+  // AI State
   const [aiThinking, setAiThinking] = useState(false);
   const [lastAiReasoning, setLastAiReasoning] = useState<string>("");
-  const [gameStatus, setGameStatus] = useState<string>("");
+
+  // Benchmark State
+  const [isBenchmarkRunning, setIsBenchmarkRunning] = useState(false);
+  const [benchmarkGamesTotal, setBenchmarkGamesTotal] = useState(10);
+  const [benchmarkGamesCompleted, setBenchmarkGamesCompleted] = useState(0);
+  const [benchmarkResults, setBenchmarkResults] = useState<BenchmarkResult[]>([]);
+  const [showBenchmarkSettings, setShowBenchmarkSettings] = useState(false);
 
   // Click-to-Move State
   const [moveFrom, setMoveFrom] = useState<string | null>(null);
   const [optionSquares, setOptionSquares] = useState<Record<string, React.CSSProperties>>({});
 
-  // To prevent double firing in StrictMode or rapid updates
+  // Refs
   const isProcessingRef = useRef(false);
+  const gameRef = useRef(game); // Keep ref for async access if needed
 
-  // Check Game Status
-  useEffect(() => {
-    if (game.isCheckmate()) {
-      setGameStatus(`チェックメイト！ ${game.turn() === 'w' ? '黒' : '白'} の勝ちです。`);
-    } else if (game.isDraw()) {
-      setGameStatus("引き分けです。");
-    } else if (game.isGameOver()) {
-      setGameStatus("ゲーム終了。");
-    } else {
-      setGameStatus("");
-    }
-  }, [game]);
+  // Update logic to trigger AI moves
+  const makeAiMove = useCallback(async (color: 'w' | 'b') => {
+    if (game.isGameOver() || isProcessingRef.current) return;
 
-  // AI Turn Handler
-  const makeAiMove = useCallback(async () => {
-    if (game.isGameOver() || game.turn() === 'w' || isProcessingRef.current) return;
+    const playerType = color === 'w' ? whitePlayerType : blackPlayerType;
+    if (playerType !== 'ai') return;
 
     isProcessingRef.current = true;
     setAiThinking(true);
 
+    const provider = color === 'w' ? whiteAiProvider : blackAiProvider;
+    const difficulty = color === 'w' ? whiteAiDifficulty : blackAiDifficulty;
+
     try {
       const possibleMoves = game.moves();
 
-      // If no moves (mate or draw), stop
+      // Safety check
       if (possibleMoves.length === 0) {
         setAiThinking(false);
         isProcessingRef.current = false;
@@ -54,7 +78,7 @@ const ChessGame: React.FC = () => {
 
       let response: AIMoveResponse;
 
-      if (aiProvider === 'ollama') {
+      if (provider === 'ollama') {
         response = await getBestMoveFromOllama(
           game.fen(),
           possibleMoves,
@@ -67,7 +91,7 @@ const ChessGame: React.FC = () => {
           possibleMoves,
           difficulty,
           game.pgn(),
-          aiProvider
+          provider
         );
       }
 
@@ -79,30 +103,80 @@ const ChessGame: React.FC = () => {
         try {
           newGame.move(response.bestMove);
         } catch (e) {
-          // Fallback if AI sends invalid notation
           console.error("Invalid AI move:", response.bestMove);
+          // Fallback random move
           const randomMove = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
           newGame.move(randomMove);
-          setLastAiReasoning("AIの手が無効だったため、ランダムな手を指しました。");
+          setLastAiReasoning("AIの手が不正だったため、ランダムな手を選びました。");
         }
         return newGame;
       });
 
     } catch (error) {
       console.error("Error making AI move:", error);
-      setLastAiReasoning("エラーが発生しました。");
+      setLastAiReasoning("AI思考中にエラーが発生しました。");
     } finally {
       setAiThinking(false);
       isProcessingRef.current = false;
     }
-  }, [game, difficulty]);
+  }, [game, whitePlayerType, blackPlayerType, whiteAiProvider, blackAiProvider, whiteAiDifficulty, blackAiDifficulty]);
 
-  // Trigger AI move when it is black's turn
+  // Main Game Loop for AI Turns
   useEffect(() => {
-    if (game.turn() === 'b' && !game.isGameOver()) {
-      makeAiMove();
+    const turn = game.turn();
+    const currentPlayerType = turn === 'w' ? whitePlayerType : blackPlayerType;
+
+    if (!game.isGameOver() && currentPlayerType === 'ai' && !aiThinking && !isProcessingRef.current) {
+      // Small delay for realism and UI update
+      const timer = setTimeout(() => {
+        makeAiMove(turn);
+      }, 500);
+      return () => clearTimeout(timer);
     }
-  }, [game, makeAiMove]);
+  }, [game, whitePlayerType, blackPlayerType, makeAiMove, aiThinking]);
+
+  // Game Status & Benchmark Logic
+  useEffect(() => {
+    if (game.isCheckmate()) {
+      setGameStatus(`チェックメイト！ ${game.turn() === 'w' ? '黒' : '白'} の勝ちです。`);
+      handleGameEnd(game.turn() === 'w' ? 'black' : 'white');
+    } else if (game.isDraw()) {
+      setGameStatus("引き分けです。");
+      handleGameEnd('draw');
+    } else if (game.isGameOver()) {
+      setGameStatus("ゲーム終了。");
+      handleGameEnd('draw');
+    } else {
+      setGameStatus("");
+    }
+  }, [game]);
+
+  const handleGameEnd = (winner: 'white' | 'black' | 'draw') => {
+    if (!isBenchmarkRunning) return;
+
+    const result: BenchmarkResult = {
+      gameNumber: benchmarkGamesCompleted + 1,
+      winner,
+      whitePlayer: `${whiteAiProvider} (${whiteAiDifficulty})`,
+      blackPlayer: `${blackAiProvider} (${blackAiDifficulty})`,
+      moves: game.history().length,
+      fen: game.fen(),
+      pgn: game.pgn(),
+      timestamp: new Date().toISOString(),
+    };
+
+    setBenchmarkResults(prev => [...prev, result]);
+    setBenchmarkGamesCompleted(prev => prev + 1);
+
+    // Schedule next game if needed
+    if (benchmarkGamesCompleted + 1 < benchmarkGamesTotal) {
+      setTimeout(() => {
+        resetGame();
+      }, 2000); // 2 second delay between games
+    } else {
+      setIsBenchmarkRunning(false);
+    }
+  };
 
   // Helper: Calculate move options for highlighting
   const getMoveOptions = (square: string) => {
@@ -111,89 +185,76 @@ const ChessGame: React.FC = () => {
       verbose: true,
     });
 
-    // Even if no moves, we highlight the selected piece
     const newSquares: Record<string, React.CSSProperties> = {};
-
     moves.forEach((move) => {
       newSquares[move.to] = {
         background:
           game.get(move.to as any) && game.get(move.to as any).color !== game.get(square as any).color
-            ? 'radial-gradient(circle, rgba(255,0,0,.4) 85%, transparent 85%)' // Capture target
-            : 'radial-gradient(circle, rgba(0,0,0,.2) 25%, transparent 25%)', // Normal move target
+            ? 'radial-gradient(circle, rgba(255,0,0,.4) 85%, transparent 85%)'
+            : 'radial-gradient(circle, rgba(0,0,0,.2) 25%, transparent 25%)',
         borderRadius: '50%',
       };
     });
-
     newSquares[square] = {
-      background: 'rgba(255, 255, 0, 0.5)', // Selected piece highlight
+      background: 'rgba(255, 255, 0, 0.5)',
     };
-
     setOptionSquares(newSquares);
   };
 
-  // Handle Square Click (Strict Click-to-Move Logic)
+  // Handle Square Click
   const onSquareClick = ({ square }: { square: string; piece: { pieceType: string } | null }) => {
-    // Cannot move if it's AI's turn or game over
-    if (game.turn() === 'b' || game.isGameOver() || aiThinking) return;
+    const turn = game.turn();
+    const currentPlayerType = turn === 'w' ? whitePlayerType : blackPlayerType;
 
-    // Case 1: A piece is currently selected
+    // Cannot move if it's AI's turn or game over
+    if (currentPlayerType === 'ai' || game.isGameOver() || aiThinking) return;
+
+    // Select piece logic logic (same as before but respecting turn owner)
     if (moveFrom) {
-      // 1-a. Clicked the same square -> Deselect
       if (moveFrom === square) {
         setMoveFrom(null);
         setOptionSquares({});
         return;
       }
 
-      // 1-b. Check if the clicked square is a valid move for the selected piece
       const moves = game.moves({ square: moveFrom as any, verbose: true });
       const foundMove = moves.find((m) => m.to === square);
 
       if (foundMove) {
-        // Execute move
         try {
           setGame((prevGame) => {
             const newGame = new Chess();
             newGame.loadPgn(prevGame.pgn());
-            newGame.move({
-              from: moveFrom!,
-              to: square,
-              promotion: 'q', // always promote to queen for simplicity
-            });
+            newGame.move({ from: moveFrom!, to: square, promotion: 'q' });
             return newGame;
           });
           setMoveFrom(null);
           setOptionSquares({});
-        } catch (e: any) {
-          console.error("Move error:", e);
+        } catch (e) {
+          console.error(e);
         }
         return;
       }
 
-      // 1-c. If not a valid move, check if clicked another OWN piece -> Switch selection
+      // Select another own piece
       const piece = game.get(square as any);
-      if (piece && piece.color === 'w') {
+      if (piece && piece.color === turn) {
         setMoveFrom(square);
         getMoveOptions(square);
         return;
       }
 
-      // 1-d. Clicked invalid square (empty or enemy not capturable) -> Deselect
       setMoveFrom(null);
       setOptionSquares({});
       return;
     }
 
-    // Case 2: No piece selected yet
     const piece = game.get(square as any);
-    // Only allow selecting own pieces (White)
-    if (piece && piece.color === 'w') {
+    if (piece && piece.color === turn) {
       setMoveFrom(square);
       getMoveOptions(square);
       return;
     }
-
-    // Clicked empty square with no selection -> do nothing (or ensure cleared)
     setOptionSquares({});
   };
 
@@ -208,185 +269,315 @@ const ChessGame: React.FC = () => {
   };
 
   const undoMove = () => {
+    if (isBenchmarkRunning) return;
     const newGame = new Chess();
     newGame.loadPgn(game.pgn());
-    // Undo AI move
-    newGame.undo();
-    // Undo User move
-    newGame.undo();
+    newGame.undo(); // Undo last move
+    // If double AI, or single AI, we might want to undo 2 steps if it was user turn after AI
+    // But safely, just undo 1 step allows precise control or undoing 2 if needed.
+    // Usually for Human vs AI, we undo 2.
+    if (whitePlayerType === 'human' && blackPlayerType === 'ai' && game.turn() === 'w') {
+      newGame.undo(); // Undo AI's move as well
+    }
+
     setGame(newGame);
     setLastAiReasoning("一手戻しました。");
     setMoveFrom(null);
     setOptionSquares({});
   };
 
+  const startBenchmark = () => {
+    setIsBenchmarkRunning(true);
+    setBenchmarkGamesCompleted(0);
+    setBenchmarkResults([]);
+    resetGame();
+  };
+
+  const stopBenchmark = () => {
+    setIsBenchmarkRunning(false);
+  };
+
+  const downloadResults = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(benchmarkResults, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `benchmark_results_${new Date().getTime()}.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+  };
+
   return (
-    <div className="flex flex-col lg:flex-row gap-8 w-full max-w-6xl mx-auto p-4">
+    <div className="flex flex-col gap-6 w-full max-w-7xl mx-auto p-4">
 
-      {/* Left Column: Board */}
-      <div className="flex-1 flex flex-col items-center justify-center space-y-4">
-        {/* touch-none prevents scrolling on mobile when tapping board */}
-        <div className="w-full max-w-[600px] aspect-square shadow-2xl rounded-lg overflow-hidden border-4 border-slate-700 bg-slate-800 relative touch-none select-none">
-          <Chessboard
-            options={{
-              position: game.fen(),
-              allowDragging: false,
-              onSquareClick,
-              squareStyles: optionSquares,
-              boardOrientation: 'white',
-              darkSquareStyle: { backgroundColor: '#779556' },
-              lightSquareStyle: { backgroundColor: '#ebecd0' },
-              animationDurationInMs: 200,
-            }}
-          />
-          {gameStatus && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-              <div className="bg-white text-slate-900 p-6 rounded-xl shadow-xl text-center">
-                <Trophy className="w-12 h-12 mx-auto text-yellow-500 mb-2" />
-                <h2 className="text-2xl font-bold mb-2">{gameStatus}</h2>
-                <button
-                  onClick={resetGame}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
-                >
-                  新しいゲーム
-                </button>
-              </div>
+      {/* Benchmark Dashboard */}
+      <div className="bg-slate-900 p-4 rounded-xl border border-slate-700 shadow-lg">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2 text-white">
+            <Settings2 className="w-5 h-5 text-blue-400" />
+            <h2 className="text-lg font-bold">Benchmark Mode</h2>
+          </div>
+          <button
+            onClick={() => setShowBenchmarkSettings(!showBenchmarkSettings)}
+            className="text-slate-400 hover:text-white text-sm underline"
+          >
+            {showBenchmarkSettings ? '設定を隠す' : '設定を表示'}
+          </button>
+        </div>
+
+        {showBenchmarkSettings && (
+          <div className="flex flex-wrap items-center gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center gap-2">
+              <span className="text-slate-300 text-sm">対戦回数:</span>
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={benchmarkGamesTotal}
+                onChange={(e) => setBenchmarkGamesTotal(parseInt(e.target.value) || 1)}
+                className="bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white w-20 text-center"
+                disabled={isBenchmarkRunning}
+              />
             </div>
-          )}
-        </div>
 
-        {/* Mobile Controls (visible on small screens) */}
-        <div className="flex lg:hidden w-full justify-between gap-2">
-          <button onClick={undoMove} disabled={aiThinking || game.history().length === 0} className="flex-1 py-3 bg-slate-700 rounded-lg disabled:opacity-50 text-white font-medium">待った</button>
-          <button onClick={resetGame} className="flex-1 py-3 bg-blue-600 rounded-lg text-white font-medium">リセット</button>
-        </div>
-      </div>
-
-      {/* Right Column: Controls & AI Info */}
-      <div className="flex-1 flex flex-col space-y-6">
-
-        {/* Header */}
-        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-          <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-            Gemini Chess Master
-          </h1>
-          <p className="text-slate-400 text-sm">
-            {aiProvider === 'gemini-2.5-flash' ? 'Google Gemini 2.5 Flash' : aiProvider === 'gemini-3-flash-preview' ? 'Google Gemini 3 Flash (Preview)' : 'Ollama (gpt-oss-safeguard:20b)'} と対戦。難易度を選択して挑戦してください。
-          </p>
-        </div>
-
-        {/* AI Provider Selector */}
-        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-          <label className="block text-sm font-medium text-slate-300 mb-3">AI モデル選択</label>
-          <div className="grid grid-cols-1 gap-2">
-            <button
-              onClick={() => setAiProvider('gemini-2.5-flash')}
-              className={`p-2 rounded-md text-sm font-medium transition-all ${aiProvider === 'gemini-2.5-flash'
-                ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-400'
-                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                }`}
-            >
-              Gemini 2.5 Flash
-            </button>
-            <button
-              onClick={() => setAiProvider('gemini-3-flash-preview')}
-              className={`p-2 rounded-md text-sm font-medium transition-all ${aiProvider === 'gemini-3-flash-preview'
-                ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-400'
-                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                }`}
-            >
-              Gemini 3 Flash (Preview)
-            </button>
-            <button
-              onClick={() => setAiProvider('ollama')}
-              className={`p-2 rounded-md text-sm font-medium transition-all ${aiProvider === 'ollama'
-                ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-400'
-                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                }`}
-            >
-              Ollama (gpt-oss-safeguard:20b)
-            </button>
-          </div>
-        </div>
-
-        {/* Difficulty Selector */}
-        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-          <label className="block text-sm font-medium text-slate-300 mb-3">AI 難易度</label>
-          <div className="grid grid-cols-2 gap-2">
-            {(Object.values(Difficulty) as Difficulty[]).map((level) => (
+            {!isBenchmarkRunning ? (
               <button
-                key={level}
-                onClick={() => setDifficulty(level)}
-                className={`p-2 rounded-md text-sm font-medium transition-all ${difficulty === level
-                  ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-400'
-                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                  }`}
+                onClick={startBenchmark}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition text-sm font-medium"
               >
-                {level.toUpperCase()}
+                <Play className="w-4 h-4" /> 開始
               </button>
-            ))}
-          </div>
-        </div>
-
-        {/* AI Status & Reasoning */}
-        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 flex-grow flex flex-col min-h-[200px]">
-          <div className="flex items-center gap-2 mb-4">
-            <Bot className={`w-6 h-6 ${aiThinking ? 'text-blue-400 animate-pulse' : 'text-slate-400'}`} />
-            <h2 className="text-lg font-semibold text-white">
-              {aiThinking ? 'AI 思考中...' : 'AI の解説'}
-            </h2>
-          </div>
-
-          <div className="bg-slate-900 rounded-lg p-4 flex-grow border border-slate-700 overflow-y-auto">
-            {aiThinking ? (
-              <div className="flex flex-col items-center justify-center h-full space-y-3">
-                <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                <p className="text-slate-400 text-sm animate-pulse">盤面を分析しています...</p>
-              </div>
-            ) : lastAiReasoning ? (
-              <div className="prose prose-invert">
-                <p className="text-slate-200 leading-relaxed">{lastAiReasoning}</p>
-              </div>
             ) : (
-              <p className="text-slate-500 text-center italic mt-10">
-                ゲームを開始して、AIの手をお待ちください。
-              </p>
+              <button
+                onClick={stopBenchmark}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition text-sm font-medium"
+              >
+                <Square className="w-4 h-4" /> 停止
+              </button>
+            )}
+
+            {benchmarkResults.length > 0 && (
+              <button
+                onClick={downloadResults}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition text-sm font-medium ml-auto"
+              >
+                <Download className="w-4 h-4" /> 結果を保存 (JSON)
+              </button>
             )}
           </div>
-        </div>
+        )}
 
-        {/* Desktop Controls */}
-        <div className="hidden lg:flex gap-4">
-          <button
-            onClick={undoMove}
-            disabled={aiThinking || game.history().length === 0}
-            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <RefreshCw className="w-4 h-4" />
-            待った (Undo)
-          </button>
-          <button
-            onClick={resetGame}
-            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition shadow-lg shadow-blue-900/20"
-          >
-            <AlertTriangle className="w-4 h-4" />
-            リセット
-          </button>
-        </div>
-
-        {/* Turn Indicator */}
-        <div className="flex items-center justify-between px-4 py-3 bg-slate-800 rounded-lg border border-slate-700">
-          <div className={`flex items-center gap-2 ${game.turn() === 'w' ? 'text-white' : 'text-slate-500'}`}>
-            <User className="w-5 h-5" />
-            <span className="font-medium">あなた (白)</span>
+        {/* Progress Bar */}
+        {isBenchmarkRunning && (
+          <div className="mt-4 w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
+            <div
+              className="bg-blue-500 h-2.5 rounded-full transition-all duration-500"
+              style={{ width: `${(benchmarkGamesCompleted / benchmarkGamesTotal) * 100}%` }}
+            ></div>
           </div>
-          <div className="h-4 w-[1px] bg-slate-600"></div>
-          <div className={`flex items-center gap-2 ${game.turn() === 'b' ? 'text-blue-400' : 'text-slate-500'}`}>
-            <Cpu className="w-5 h-5" />
-            <span className="font-medium">AI (黒)</span>
+        )}
+
+        {/* Stats Summary */}
+        {benchmarkResults.length > 0 && (
+          <div className="mt-4 flex gap-4 text-sm text-slate-300 border-t border-slate-700 pt-3">
+            <span>Games: {benchmarkGamesCompleted} / {benchmarkGamesTotal}</span>
+            <span>White Wins: {benchmarkResults.filter(r => r.winner === 'white').length}</span>
+            <span>Black Wins: {benchmarkResults.filter(r => r.winner === 'black').length}</span>
+            <span>Draws: {benchmarkResults.filter(r => r.winner === 'draw').length}</span>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col xl:flex-row gap-8">
+        {/* Left Column: Board */}
+        <div className="flex-1 flex flex-col items-center justify-start space-y-4">
+          <div className="w-full max-w-[600px] aspect-square shadow-2xl rounded-lg overflow-hidden border-4 border-slate-700 bg-slate-800 relative touch-none select-none">
+            <Chessboard
+              options={{
+                position: game.fen(),
+                allowDragging: false,
+                onSquareClick,
+                squareStyles: optionSquares,
+                boardOrientation: 'white',
+                darkSquareStyle: { backgroundColor: '#779556' },
+                lightSquareStyle: { backgroundColor: '#ebecd0' },
+                animationDurationInMs: 200,
+              }}
+            />
+            {gameStatus && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                <div className="bg-white text-slate-900 p-6 rounded-xl shadow-xl text-center">
+                  <Trophy className="w-12 h-12 mx-auto text-yellow-500 mb-2" />
+                  <h2 className="text-2xl font-bold mb-2">{gameStatus}</h2>
+                  {!isBenchmarkRunning && (
+                    <button
+                      onClick={resetGame}
+                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+                    >
+                      新しいゲーム
+                    </button>
+                  )}
+                  {isBenchmarkRunning && (
+                    <p className="text-sm text-slate-600 animate-pulse">次のゲームを開始します...</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Turn Indicator */}
+          <div className="w-full max-w-[600px] flex items-center justify-between px-4 py-3 bg-slate-800 rounded-lg border border-slate-700">
+            <div className={`flex items-center gap-2 ${game.turn() === 'w' ? 'text-white' : 'text-slate-500'}`}>
+              <div className={`w-3 h-3 rounded-full ${game.turn() === 'w' ? 'bg-green-500 animate-pulse' : 'bg-slate-600'}`}></div>
+              <span className="font-medium">White: {whitePlayerType === 'human' ? 'You' : whiteAiProvider}</span>
+            </div>
+            <div className="h-4 w-[1px] bg-slate-600"></div>
+            <div className={`flex items-center gap-2 ${game.turn() === 'b' ? 'text-white' : 'text-slate-500'}`}>
+              <span className="font-medium">Black: {blackPlayerType === 'human' ? 'You' : blackAiProvider}</span>
+              <div className={`w-3 h-3 rounded-full ${game.turn() === 'b' ? 'bg-green-500 animate-pulse' : 'bg-slate-600'}`}></div>
+            </div>
           </div>
         </div>
 
+        {/* Right Column: Player Settings & Info */}
+        <div className="flex-1 flex flex-col space-y-4 max-w-xl">
+
+          {/* White Player Config */}
+          <div className="bg-slate-800 p-5 rounded-xl border border-slate-700">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-white font-bold flex items-center gap-2"><User className="w-4 h-4" /> White Player</h3>
+              <div className="flex bg-slate-700 rounded-lg p-1">
+                <button
+                  onClick={() => setWhitePlayerType('human')}
+                  className={`px-3 py-1 rounded text-xs font-bold transition ${whitePlayerType === 'human' ? 'bg-blue-600 text-white' : 'text-slate-400'}`}
+                  disabled={isBenchmarkRunning}
+                >Human</button>
+                <button
+                  onClick={() => setWhitePlayerType('ai')}
+                  className={`px-3 py-1 rounded text-xs font-bold transition ${whitePlayerType === 'ai' ? 'bg-blue-600 text-white' : 'text-slate-400'}`}
+                  disabled={isBenchmarkRunning}
+                >AI</button>
+              </div>
+            </div>
+            {whitePlayerType === 'ai' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <select
+                  value={whiteAiProvider}
+                  onChange={(e) => setWhiteAiProvider(e.target.value as AIProvider)}
+                  className="bg-slate-900 border border-slate-600 text-white text-sm rounded p-2"
+                  disabled={isBenchmarkRunning}
+                >
+                  <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                  <option value="gemini-3-flash-preview">Gemini 3 Flash (Preview)</option>
+                  <option value="ollama">Ollama (Locally Hosted)</option>
+                </select>
+
+                <select
+                  value={whiteAiDifficulty}
+                  onChange={(e) => setWhiteAiDifficulty(e.target.value as Difficulty)}
+                  className="bg-slate-900 border border-slate-600 text-white text-sm rounded p-2"
+                  disabled={isBenchmarkRunning}
+                >
+                  <option value={Difficulty.BEGINNER}>Beginner</option>
+                  <option value={Difficulty.INTERMEDIATE}>Intermediate</option>
+                  <option value={Difficulty.ADVANCED}>Advanced</option>
+                  <option value={Difficulty.GRANDMASTER}>Grandmaster</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Black Player Config */}
+          <div className="bg-slate-800 p-5 rounded-xl border border-slate-700">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-white font-bold flex items-center gap-2"><Cpu className="w-4 h-4" /> Black Player</h3>
+              <div className="flex bg-slate-700 rounded-lg p-1">
+                <button
+                  onClick={() => setBlackPlayerType('human')}
+                  className={`px-3 py-1 rounded text-xs font-bold transition ${blackPlayerType === 'human' ? 'bg-blue-600 text-white' : 'text-slate-400'}`}
+                  disabled={isBenchmarkRunning}
+                >Human</button>
+                <button
+                  onClick={() => setBlackPlayerType('ai')}
+                  className={`px-3 py-1 rounded text-xs font-bold transition ${blackPlayerType === 'ai' ? 'bg-blue-600 text-white' : 'text-slate-400'}`}
+                  disabled={isBenchmarkRunning}
+                >AI</button>
+              </div>
+            </div>
+            {blackPlayerType === 'ai' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <select
+                  value={blackAiProvider}
+                  onChange={(e) => setBlackAiProvider(e.target.value as AIProvider)}
+                  className="bg-slate-900 border border-slate-600 text-white text-sm rounded p-2"
+                  disabled={isBenchmarkRunning}
+                >
+                  <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                  <option value="gemini-3-flash-preview">Gemini 3 Flash (Preview)</option>
+                  <option value="ollama">Ollama (Locally Hosted)</option>
+                </select>
+
+                <select
+                  value={blackAiDifficulty}
+                  onChange={(e) => setBlackAiDifficulty(e.target.value as Difficulty)}
+                  className="bg-slate-900 border border-slate-600 text-white text-sm rounded p-2"
+                  disabled={isBenchmarkRunning}
+                >
+                  <option value={Difficulty.BEGINNER}>Beginner</option>
+                  <option value={Difficulty.INTERMEDIATE}>Intermediate</option>
+                  <option value={Difficulty.ADVANCED}>Advanced</option>
+                  <option value={Difficulty.GRANDMASTER}>Grandmaster</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* AI Status & Reasoning */}
+          <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 flex-grow flex flex-col min-h-[300px]">
+            <div className="flex items-center gap-2 mb-4">
+              <Bot className={`w-6 h-6 ${aiThinking ? 'text-blue-400 animate-pulse' : 'text-slate-400'}`} />
+              <h2 className="text-lg font-semibold text-white">
+                {aiThinking ? 'AI Thinking...' : 'AI Reasoning'}
+              </h2>
+            </div>
+            <div className="bg-slate-900 rounded-lg p-4 flex-grow border border-slate-700 overflow-y-auto max-h-[400px]">
+              {aiThinking ? (
+                <div className="flex flex-col items-center justify-center h-full space-y-3">
+                  <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-slate-400 text-sm animate-pulse">Analyzing position...</p>
+                </div>
+              ) : lastAiReasoning ? (
+                <div className="prose prose-invert">
+                  <p className="text-slate-200 leading-relaxed whitespace-pre-wrap">{lastAiReasoning}</p>
+                </div>
+              ) : (
+                <p className="text-slate-500 text-center italic mt-10">
+                  Game logs will appear here.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Game Controls */}
+          {!isBenchmarkRunning && (
+            <div className="flex gap-4">
+              <button
+                onClick={undoMove}
+                disabled={aiThinking || game.history().length === 0}
+                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RefreshCw className="w-4 h-4" /> Undo
+              </button>
+              <button
+                onClick={resetGame}
+                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition shadow-lg shadow-blue-900/20"
+              >
+                <AlertTriangle className="w-4 h-4" /> Reset
+              </button>
+            </div>
+          )}
+
+        </div>
       </div>
     </div>
   );
