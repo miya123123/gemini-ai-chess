@@ -45,13 +45,17 @@ const ChessGame: React.FC = () => {
   const [benchmarkResults, setBenchmarkResults] = useState<BenchmarkResult[]>([]);
   const [showBenchmarkSettings, setShowBenchmarkSettings] = useState(false);
 
+  // Play/Stop State
+  const [isGameStarted, setIsGameStarted] = useState(false);
+
   // Click-to-Move State
   const [moveFrom, setMoveFrom] = useState<string | null>(null);
   const [optionSquares, setOptionSquares] = useState<Record<string, React.CSSProperties>>({});
 
   // Refs
   const isProcessingRef = useRef(false);
-  const gameRef = useRef(game); // Keep ref for async access if needed
+  const gameRef = useRef(game);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Update logic to trigger AI moves
   const makeAiMove = useCallback(async (color: 'w' | 'b') => {
@@ -59,6 +63,10 @@ const ChessGame: React.FC = () => {
 
     const playerType = color === 'w' ? whitePlayerType : blackPlayerType;
     if (playerType !== 'ai') return;
+
+    // Reset abort controller for new move
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
 
     isProcessingRef.current = true;
     setAiThinking(true);
@@ -69,7 +77,6 @@ const ChessGame: React.FC = () => {
     try {
       const possibleMoves = game.moves();
 
-      // Safety check
       if (possibleMoves.length === 0) {
         setAiThinking(false);
         isProcessingRef.current = false;
@@ -77,6 +84,9 @@ const ChessGame: React.FC = () => {
       }
 
       let response: AIMoveResponse;
+
+      // Check abort before expensive call (though unlikely to be aborted this early)
+      if (signal.aborted) return;
 
       if (provider === 'ollama') {
         response = await getBestMoveFromOllama(
@@ -95,6 +105,12 @@ const ChessGame: React.FC = () => {
         );
       }
 
+      // Check abort after async call
+      if (signal.aborted) {
+        console.log("AI move aborted");
+        return;
+      }
+
       setLastAiReasoning(response.reasoning);
 
       setGame((prevGame) => {
@@ -104,7 +120,6 @@ const ChessGame: React.FC = () => {
           newGame.move(response.bestMove);
         } catch (e) {
           console.error("Invalid AI move:", response.bestMove);
-          // Fallback random move
           const randomMove = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
           newGame.move(randomMove);
           setLastAiReasoning("AIの手が不正だったため、ランダムな手を選びました。");
@@ -113,16 +128,21 @@ const ChessGame: React.FC = () => {
       });
 
     } catch (error) {
+      if (signal.aborted) return;
       console.error("Error making AI move:", error);
       setLastAiReasoning("AI思考中にエラーが発生しました。");
     } finally {
-      setAiThinking(false);
-      isProcessingRef.current = false;
+      if (!signal.aborted) {
+        setAiThinking(false);
+        isProcessingRef.current = false;
+      }
     }
   }, [game, whitePlayerType, blackPlayerType, whiteAiProvider, blackAiProvider, whiteAiDifficulty, blackAiDifficulty]);
 
   // Main Game Loop for AI Turns
   useEffect(() => {
+    if (!isGameStarted) return; // Don't run AI if game hasn't started
+
     const turn = game.turn();
     const currentPlayerType = turn === 'w' ? whitePlayerType : blackPlayerType;
 
@@ -133,7 +153,7 @@ const ChessGame: React.FC = () => {
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [game, whitePlayerType, blackPlayerType, makeAiMove, aiThinking]);
+  }, [game, whitePlayerType, blackPlayerType, makeAiMove, aiThinking, isGameStarted]);
 
   // Game Status & Benchmark Logic
   useEffect(() => {
@@ -206,8 +226,8 @@ const ChessGame: React.FC = () => {
     const turn = game.turn();
     const currentPlayerType = turn === 'w' ? whitePlayerType : blackPlayerType;
 
-    // Cannot move if it's AI's turn or game over
-    if (currentPlayerType === 'ai' || game.isGameOver() || aiThinking) return;
+    // Cannot move if it's AI's turn or game over or game not started
+    if (currentPlayerType === 'ai' || game.isGameOver() || aiThinking || !isGameStarted) return;
 
     // Select piece logic logic (same as before but respecting turn owner)
     if (moveFrom) {
@@ -265,7 +285,12 @@ const ChessGame: React.FC = () => {
     setGameStatus("");
     setMoveFrom(null);
     setOptionSquares({});
+    setIsGameStarted(false); // require Play button again
     isProcessingRef.current = false;
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    setAiThinking(false);
   };
 
   const undoMove = () => {
@@ -305,6 +330,35 @@ const ChessGame: React.FC = () => {
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
+  };
+
+  const handleStartGame = () => {
+    setIsGameStarted(true);
+  };
+
+  const handleStopThinking = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Force stop thinking state
+    setAiThinking(false);
+    isProcessingRef.current = false;
+
+    // Play random move
+    const possibleMoves = game.moves();
+    if (possibleMoves.length > 0) {
+      const randomMove = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+
+      setGame((prevGame) => {
+        const newGame = new Chess();
+        newGame.loadPgn(prevGame.pgn());
+        newGame.move(randomMove);
+        return newGame;
+      });
+
+      setLastAiReasoning("思考停止ボタンが押されたため、ランダムな手を選びました。");
+    }
   };
 
   return (
@@ -560,20 +614,43 @@ const ChessGame: React.FC = () => {
 
           {/* Game Controls */}
           {!isBenchmarkRunning && (
-            <div className="flex gap-4">
-              <button
-                onClick={undoMove}
-                disabled={aiThinking || game.history().length === 0}
-                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <RefreshCw className="w-4 h-4" /> Undo
-              </button>
-              <button
-                onClick={resetGame}
-                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition shadow-lg shadow-blue-900/20"
-              >
-                <AlertTriangle className="w-4 h-4" /> Reset
-              </button>
+            <div className="flex flex-col gap-4">
+              {/* Play / Stop Logic */}
+              {!isGameStarted ? (
+                <button
+                  onClick={handleStartGame}
+                  className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-green-600 hover:bg-green-500 text-white text-lg font-bold rounded-xl transition shadow-lg shadow-green-900/20"
+                >
+                  <Play className="w-6 h-6" /> Play Game
+                </button>
+              ) : aiThinking ? (
+                <button
+                  onClick={handleStopThinking}
+                  className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-red-600 hover:bg-red-500 text-white text-lg font-bold rounded-xl transition shadow-lg shadow-red-900/20 animate-pulse"
+                >
+                  <Square className="w-6 h-6" /> Stop Thinking
+                </button>
+              ) : (
+                <div className="text-center text-slate-500 py-2 border border-slate-700 rounded-lg">
+                  ゲーム進行中...
+                </div>
+              )}
+
+              <div className="flex gap-4">
+                <button
+                  onClick={undoMove}
+                  disabled={aiThinking || game.history().length === 0 || !isGameStarted}
+                  className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <RefreshCw className="w-4 h-4" /> Undo
+                </button>
+                <button
+                  onClick={resetGame}
+                  className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition shadow-lg shadow-blue-900/20"
+                >
+                  <AlertTriangle className="w-4 h-4" /> Reset
+                </button>
+              </div>
             </div>
           )}
 
