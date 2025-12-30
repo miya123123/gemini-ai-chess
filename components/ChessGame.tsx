@@ -192,6 +192,7 @@ const ChessGame: React.FC = () => {
     if (benchmarkGamesCompleted + 1 < benchmarkGamesTotal) {
       setTimeout(() => {
         resetGame();
+        setIsGameStarted(true);
       }, 2000); // 2 second delay between games
     } else {
       setIsBenchmarkRunning(false);
@@ -316,6 +317,7 @@ const ChessGame: React.FC = () => {
     setBenchmarkGamesCompleted(0);
     setBenchmarkResults([]);
     resetGame();
+    setIsGameStarted(true);
   };
 
   const stopBenchmark = () => {
