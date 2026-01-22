@@ -98,6 +98,7 @@ AIは単に手を指すだけでなく、その手を選んだ理由を日本語
 - Gemini 3 Pro (メインの開発に使用)
 - Gemini 3 Flash (対戦相手として使用)
 - Gemini 2.5 Flash (対戦相手として使用)
+- gpt-oss-safeguard:20b（対戦相手として使用）
 - gpt-5.1-codex-max (軽微なバグ修正にサブとして使用)
 
 ## Frontend
