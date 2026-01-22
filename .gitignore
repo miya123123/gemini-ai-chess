@@ -24,5 +24,12 @@ dist-ssr
 *.sw?
 Private/
 .agent/
+Recordings/
+
+# Large media files
+*.mov
+*.mp4
+*.avi
+*.mkv
 
 .GEMINI.md
