@@ -1,6 +1,11 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { Difficulty, AIMoveResponse, AIProvider } from '../types';
 
+export interface PositionEvaluation {
+  score: number;
+  explanation: string;
+}
+
 // Initialize the API client
 // Note: process.env.API_KEY is injected by the environment.
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
@@ -18,6 +23,21 @@ const responseSchema: Schema = {
     },
   },
   required: ["bestMove", "reasoning"],
+};
+
+const evaluationSchema: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    score: {
+      type: Type.NUMBER,
+      description: "Evaluation score of the position. Positive for white advantage, negative for black advantage. e.g. 1.5, -0.3. 0 for equal. Scale is roughly centipawns divided by 100.",
+    },
+    explanation: {
+      type: Type.STRING,
+      description: "Detailed explanation of the position evaluation in Japanese. Mention strengths, weaknesses, and potential plans.",
+    },
+  },
+  required: ["score", "explanation"],
 };
 
 export const getBestMove = async (
@@ -93,3 +113,64 @@ export const getBestMove = async (
     };
   }
 };
+
+export const evaluatePosition = async (
+  fen: string,
+  pgn: string,
+  provider: AIProvider = 'gemini-2.5-flash'
+): Promise<PositionEvaluation> => {
+  const modelId = provider === 'gemini-2.5-flash' ? 'gemini-2.5-flash' : 'gemini-3-flash-preview';
+
+  const systemInstruction = `
+    あなたは熟練したチェスのグランドマスターエンジンです。
+    現在の盤面(FEN)と棋譜(PGN)が与えられます。
+    
+    役割:
+    1. 現在の局面を評価してください。
+    2. 数値スコア(score)と、その理由の日本語解説(explanation)を提供してください。
+    
+    スコアの目安:
+    - プラスの値: 白有利 (例: 1.0 はポーン1個分の有利)
+    - マイナスの値: 黒有利
+    - 0に近い値: 互角
+    
+    解説:
+    - 重要な駒の配置、弱点、戦術的な可能性、双方のプランについて触れてください。
+  `;
+
+  const prompt = `
+    Current Position (FEN): ${fen}
+    Game History (PGN): ${pgn}
+    
+    Please evaluate this position.
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: modelId,
+      contents: prompt,
+      config: {
+        systemInstruction: systemInstruction,
+        responseMimeType: "application/json",
+        responseSchema: evaluationSchema,
+        temperature: 0.2,
+      },
+    });
+
+    const text = response.text;
+    if (!text) {
+      throw new Error("No response from AI");
+    }
+
+    const data = JSON.parse(text) as PositionEvaluation;
+    return data;
+
+  } catch (error) {
+    console.error("Gemini API Evaluation Error:", error);
+    return {
+      score: 0,
+      explanation: "評価中にエラーが発生しました。",
+    };
+  }
+};
+

@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Chess } from 'chess.js';
 import { Chessboard } from 'react-chessboard';
-import { getBestMove } from '../services/geminiService';
+import { getBestMove, evaluatePosition, PositionEvaluation } from '../services/geminiService';
 import { getBestMoveFromOllama } from '../services/ollamaService';
 import { Difficulty, AIMoveResponse, AIProvider } from '../types';
-import { Bot, RefreshCw, Trophy, AlertTriangle, Cpu, User, Download, Play, Square, Settings2 } from 'lucide-react';
+import { Bot, RefreshCw, Trophy, AlertTriangle, Cpu, User, Download, Play, Square, Settings2, BookOpen, Activity } from 'lucide-react';
 
 type PlayerType = 'human' | 'ai';
 
@@ -37,6 +37,10 @@ const ChessGame: React.FC = () => {
   // AI State
   const [aiThinking, setAiThinking] = useState(false);
   const [lastAiReasoning, setLastAiReasoning] = useState<string>("");
+
+  // Evaluation State
+  const [evaluation, setEvaluation] = useState<PositionEvaluation | null>(null);
+  const [isEvaluating, setIsEvaluating] = useState(false);
 
   // Benchmark State
   const [isBenchmarkRunning, setIsBenchmarkRunning] = useState(false);
@@ -118,6 +122,7 @@ const ChessGame: React.FC = () => {
         newGame.loadPgn(prevGame.pgn());
         try {
           newGame.move(response.bestMove);
+          setEvaluation(null); // Clear evaluation on move
         } catch (e) {
           console.error("Invalid AI move:", response.bestMove);
           const randomMove = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
@@ -247,6 +252,7 @@ const ChessGame: React.FC = () => {
             const newGame = new Chess();
             newGame.loadPgn(prevGame.pgn());
             newGame.move({ from: moveFrom!, to: square, promotion: 'q' });
+            setEvaluation(null); // Clear evaluation on move
             return newGame;
           });
           setMoveFrom(null);
@@ -283,6 +289,7 @@ const ChessGame: React.FC = () => {
     const newGame = new Chess();
     setGame(newGame);
     setLastAiReasoning("");
+    setEvaluation(null);
     setGameStatus("");
     setMoveFrom(null);
     setOptionSquares({});
@@ -308,6 +315,7 @@ const ChessGame: React.FC = () => {
 
     setGame(newGame);
     setLastAiReasoning("一手戻しました。");
+    setEvaluation(null);
     setMoveFrom(null);
     setOptionSquares({});
   };
@@ -360,6 +368,21 @@ const ChessGame: React.FC = () => {
       });
 
       setLastAiReasoning("思考停止ボタンが押されたため、ランダムな手を選びました。");
+    }
+  };
+
+  const handleEvaluate = async () => {
+    if (isEvaluating || isBenchmarkRunning) return;
+    setIsEvaluating(true);
+    setEvaluation(null);
+    try {
+      const result = await evaluatePosition(game.fen(), game.pgn(), 'gemini-3-flash-preview');
+      setEvaluation(result);
+    } catch (e) {
+      console.error(e);
+      setEvaluation({ score: 0, explanation: "評価に失敗しました。" });
+    } finally {
+      setIsEvaluating(false);
     }
   };
 
@@ -609,6 +632,47 @@ const ChessGame: React.FC = () => {
               ) : (
                 <p className="text-slate-500 text-center italic mt-10">
                   Game logs will appear here.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Position Evaluation */}
+          <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 flex flex-col min-h-[200px]">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-purple-400" />
+                <h2 className="text-lg font-semibold text-white">Position Evaluation</h2>
+              </div>
+              <button
+                onClick={handleEvaluate}
+                disabled={isEvaluating || isBenchmarkRunning}
+                className="flex items-center gap-2 px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded transition disabled:opacity-50"
+              >
+                <Activity className="w-3 h-3" /> Evaluate
+              </button>
+            </div>
+
+            <div className="bg-slate-900 rounded-lg p-4 flex-grow border border-slate-700 overflow-y-auto max-h-[300px]">
+              {isEvaluating ? (
+                <div className="flex flex-col items-center justify-center h-full space-y-3">
+                  <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-slate-400 text-sm animate-pulse">Evaluating position...</p>
+                </div>
+              ) : evaluation ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-400 text-sm">Score:</span>
+                    <span className={`text-xl font-bold ${evaluation.score > 0 ? 'text-green-400' : evaluation.score < 0 ? 'text-red-400' : 'text-slate-200'}`}>
+                      {evaluation.score > 0 ? '+' : ''}{evaluation.score}
+                    </span>
+                  </div>
+                  <div className="h-px bg-slate-700 my-2"></div>
+                  <p className="text-slate-200 text-sm leading-relaxed whitespace-pre-wrap">{evaluation.explanation}</p>
+                </div>
+              ) : (
+                <p className="text-slate-500 text-center text-sm italic mt-6">
+                  Click Evaluate to analyze the current position.
                 </p>
               )}
             </div>
