@@ -4,7 +4,8 @@ import { Chessboard } from 'react-chessboard';
 import { getBestMove, evaluatePosition, PositionEvaluation } from '../services/geminiService';
 import { getBestMoveFromOllama } from '../services/ollamaService';
 import { Difficulty, AIMoveResponse, AIProvider } from '../types';
-import { Bot, RefreshCw, Trophy, AlertTriangle, Cpu, User, Download, Play, Square, Settings2, BookOpen, Activity } from 'lucide-react';
+import { Bot, RefreshCw, Trophy, AlertTriangle, Cpu, User, Download, Play, Square, Settings2, BookOpen, Activity, BarChart3 } from 'lucide-react';
+import EloStatistics from './EloStatistics';
 
 type PlayerType = 'human' | 'ai';
 
@@ -48,6 +49,7 @@ const ChessGame: React.FC = () => {
   const [benchmarkGamesCompleted, setBenchmarkGamesCompleted] = useState(0);
   const [benchmarkResults, setBenchmarkResults] = useState<BenchmarkResult[]>([]);
   const [showBenchmarkSettings, setShowBenchmarkSettings] = useState(false);
+  const [showEloStats, setShowEloStats] = useState(false);
 
   // Play/Stop State
   const [isGameStarted, setIsGameStarted] = useState(false);
@@ -438,11 +440,18 @@ const ChessGame: React.FC = () => {
             {benchmarkResults.length > 0 && (
               <button
                 onClick={downloadResults}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition text-sm font-medium ml-auto"
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition text-sm font-medium"
               >
                 <Download className="w-4 h-4" /> 結果を保存 (JSON)
               </button>
             )}
+
+            <button
+              onClick={() => setShowEloStats(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition text-sm font-medium ml-auto"
+            >
+              <BarChart3 className="w-4 h-4" /> 統計・分析
+            </button>
           </div>
         )}
 
@@ -722,6 +731,13 @@ const ChessGame: React.FC = () => {
 
         </div>
       </div>
+
+      {/* ELO Statistics Modal */}
+      <EloStatistics
+        benchmarkResults={benchmarkResults}
+        isVisible={showEloStats}
+        onClose={() => setShowEloStats(false)}
+      />
     </div>
   );
 };
